@@ -1,0 +1,445 @@
+/**
+ * Left-Handed Guitar Chord Reference App
+ * Responsive Styles - Mobile First
+ */
+
+/* CSS Reset & Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Colors */
+  --color-bg: #1a1a2e;
+  --color-surface: #16213e;
+  --color-surface-alt: #0f3460;
+  --color-primary: #e94560;
+  --color-primary-light: #ff6b6b;
+  --color-text: #eaeaea;
+  --color-text-muted: #a0a0a0;
+  --color-border: #2a2a4a;
+
+  /* Chord Diagram Colors */
+  --chord-bg: #fff;
+  --chord-grid: #333;
+  --chord-dot: #1a1a2e;
+  --chord-dot-text: #fff;
+  --chord-open: transparent;
+  --chord-open-stroke: #333;
+  --chord-muted: #333;
+  --chord-barre: #1a1a2e;
+  --chord-nut: #333;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+}
+
+html {
+  font-size: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.5;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Header */
+.header {
+  background: var(--color-surface);
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header h1 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: var(--spacing-xs);
+}
+
+.header h1 span {
+  color: var(--color-primary);
+}
+
+.tagline {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* Search Container */
+.search-container {
+  padding: var(--spacing-md);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-md);
+  background: var(--color-bg);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-md);
+}
+
+.tab {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tab:hover {
+  color: var(--color-text);
+}
+
+.tab.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.search-input-wrapper {
+  position: relative;
+}
+
+#searchInput {
+  width: 100%;
+  padding: var(--spacing-md);
+  padding-right: 44px;
+  font-size: var(--font-size-base);
+  background: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+#searchInput:focus {
+  border-color: var(--color-primary);
+}
+
+#searchInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+#clearBtn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast);
+}
+
+#clearBtn:hover {
+  color: var(--color-text);
+}
+
+
+/* Main Content */
+.main-content {
+  padding: var(--spacing-md);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Loading State */
+#loading {
+  text-align: center;
+  padding: var(--spacing-xl);
+  color: var(--color-text-muted);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  margin: 0 auto var(--spacing-md);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Results */
+#results {
+  min-height: 200px;
+}
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.results-header h2 {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+}
+
+.position-count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* Chord Grid */
+.chord-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-md);
+}
+
+/* Chord Card */
+.chord-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.chord-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-sm);
+}
+
+/* Chord Diagram SVG Styles */
+.chord-diagram {
+  width: 100%;
+  max-width: 200px;
+  height: auto;
+  background: var(--chord-bg);
+  border-radius: var(--radius-md);
+}
+
+.chord-string {
+  stroke: var(--chord-grid);
+  stroke-width: 1.5;
+}
+
+.chord-fret {
+  stroke: var(--chord-grid);
+  stroke-width: 1;
+}
+
+.chord-nut {
+  fill: var(--chord-nut);
+}
+
+.chord-position-number {
+  font-size: 14px;
+  font-weight: 600;
+  fill: #666;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.chord-dot {
+  fill: var(--chord-dot);
+}
+
+.chord-finger-number {
+  fill: var(--chord-dot-text);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.chord-open {
+  fill: var(--chord-open);
+  stroke: var(--chord-open-stroke);
+  stroke-width: 2;
+}
+
+.chord-muted {
+  stroke: var(--chord-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.chord-barre {
+  fill: var(--chord-barre);
+}
+
+/* Chord List (for note search results) */
+.chord-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.chord-button {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  background: var(--color-surface-alt);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.chord-button:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+/* Empty States */
+.welcome-message,
+.no-results,
+.error-message {
+  text-align: center;
+  padding: var(--spacing-xl);
+  color: var(--color-text-muted);
+}
+
+.welcome-message p:first-child,
+.no-results p:first-child,
+.error-message p:first-child {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--spacing-sm);
+}
+
+.hint {
+  font-size: var(--font-size-sm);
+  opacity: 0.7;
+}
+
+.error-message {
+  color: var(--color-primary-light);
+}
+
+/* Responsive: 2-column grid */
+@media (min-width: 481px) {
+  .chord-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .header h1 {
+    font-size: var(--font-size-xl);
+  }
+}
+
+/* Responsive: 3-column grid */
+@media (min-width: 769px) {
+  .chord-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .main-content {
+    padding: var(--spacing-lg);
+  }
+
+  .search-container {
+    padding: var(--spacing-lg);
+  }
+
+  .search-wrapper {
+    max-width: 600px;
+    margin: 0 auto var(--spacing-sm);
+  }
+}
+
+/* Responsive: 4-column grid for large screens */
+@media (min-width: 1024px) {
+  .chord-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Touch-friendly adjustments */
+@media (hover: none) and (pointer: coarse) {
+  #searchInput,
+  #modeToggle,
+  .chord-button,
+  #clearBtn {
+    min-height: 44px;
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dark mode is default, but support light preference */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg: #f5f5f7;
+    --color-surface: #ffffff;
+    --color-surface-alt: #e8e8ed;
+    --color-text: #1d1d1f;
+    --color-text-muted: #6e6e73;
+    --color-border: #d2d2d7;
+  }
+
+  #searchInput {
+    background: var(--color-surface);
+  }
+}
