@@ -21,11 +21,27 @@ const ReverseLookup = {
     'B': 11, 'B#': 0, 'Cb': 11, 'C♭': 11
   },
 
-  // Pitch class to note name (for display)
+  // Pitch class to note name (for display - uses flat notation)
   PITCH_CLASS_TO_NOTE: {
-    0: 'C', 1: 'C#', 2: 'D', 3: 'Eb',
-    4: 'E', 5: 'F', 6: 'F#', 7: 'G',
+    0: 'C', 1: 'Db', 2: 'D', 3: 'Eb',
+    4: 'E', 5: 'F', 6: 'Gb', 7: 'G',
     8: 'Ab', 9: 'A', 10: 'Bb', 11: 'B'
+  },
+
+  // Map database keys to display format (flat notation)
+  DATABASE_KEY_TO_DISPLAY: {
+    'C': 'C',
+    'Csharp': 'Db',
+    'D': 'D',
+    'Eb': 'Eb',
+    'E': 'E',
+    'F': 'F',
+    'Fsharp': 'Gb',
+    'G': 'G',
+    'Ab': 'Ab',
+    'A': 'A',
+    'Bb': 'Bb',
+    'B': 'B'
   },
 
   /**
@@ -46,12 +62,14 @@ const ReverseLookup = {
 
     this.midiIndex = new Map();
 
-    // Iterate through all keys (C, C#, D, etc.)
+    // Iterate through all keys (C, Csharp, D, etc.)
     Object.keys(this.chordData.chords).forEach(key => {
       const chords = this.chordData.chords[key];
+      // Convert database key to display format (flat notation)
+      const displayKey = this.DATABASE_KEY_TO_DISPLAY[key] || key;
 
       chords.forEach(chord => {
-        const chordName = key + (chord.suffix === 'major' ? '' : chord.suffix);
+        const chordName = displayKey + (chord.suffix === 'major' ? '' : chord.suffix);
 
         // Each chord has multiple positions/voicings
         chord.positions.forEach(position => {

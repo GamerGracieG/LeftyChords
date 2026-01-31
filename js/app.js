@@ -6,8 +6,10 @@
 const App = {
   // State
   chordData: null,
-  searchMode: 'chord', // 'chord' or 'notes'
+  searchMode: 'chord', // 'chord', 'notes', or 'progressions'
   isInitialized: false,
+  selectedProgression: null,
+  selectedKey: 'C',
 
   /**
    * Initialize the application
@@ -20,6 +22,16 @@ const App = {
       // Initialize search modules
       ChordSearch.init(this.chordData);
       ReverseLookup.init(this.chordData);
+
+      // Initialize modal
+      Modal.init();
+
+      // Initialize autocomplete for chord search
+      const searchInput = document.getElementById('searchInput');
+      Autocomplete.init(searchInput, (chordName) => {
+        // When a suggestion is selected, search for it
+        this.searchByChordName(chordName);
+      });
 
       // Set up event listeners
       this.setupEventListeners();
@@ -68,13 +80,24 @@ const App = {
     // Tab buttons
     const tabChord = document.getElementById('tabChord');
     const tabNotes = document.getElementById('tabNotes');
+    const tabProgressions = document.getElementById('tabProgressions');
 
     tabChord.addEventListener('click', () => this.setSearchMode('chord'));
     tabNotes.addEventListener('click', () => this.setSearchMode('notes'));
+    tabProgressions.addEventListener('click', () => this.setSearchMode('progressions'));
 
     // Clear button
     const clearBtn = document.getElementById('clearBtn');
     clearBtn.addEventListener('click', () => this.clearSearch());
+
+    // Key selector
+    const keySelect = document.getElementById('keySelect');
+    keySelect.addEventListener('change', (e) => {
+      this.selectedKey = e.target.value;
+      if (this.selectedProgression) {
+        this.displayProgression(this.selectedProgression);
+      }
+    });
   },
 
   /**
@@ -88,30 +111,51 @@ const App = {
     // Update tab UI
     const tabChord = document.getElementById('tabChord');
     const tabNotes = document.getElementById('tabNotes');
+    const tabProgressions = document.getElementById('tabProgressions');
+    const searchPanel = document.getElementById('searchPanel');
+    const progressionsPanel = document.getElementById('progressionsPanel');
     const searchInput = document.getElementById('searchInput');
+
+    // Close autocomplete when switching modes
+    Autocomplete.close();
+
+    // Reset all tabs
+    [tabChord, tabNotes, tabProgressions].forEach(tab => {
+      tab.classList.remove('active');
+      tab.setAttribute('aria-selected', 'false');
+    });
 
     if (mode === 'chord') {
       tabChord.classList.add('active');
       tabChord.setAttribute('aria-selected', 'true');
-      tabNotes.classList.remove('active');
-      tabNotes.setAttribute('aria-selected', 'false');
+      searchPanel.style.display = '';
+      progressionsPanel.style.display = 'none';
       searchInput.placeholder = 'Enter chord name (e.g., Cmaj7, Am, F#dim)';
-    } else {
+      this.clearResults();
+      const query = searchInput.value.trim();
+      if (query) {
+        this.handleSearch();
+      }
+      searchInput.focus();
+    } else if (mode === 'notes') {
       tabNotes.classList.add('active');
       tabNotes.setAttribute('aria-selected', 'true');
-      tabChord.classList.remove('active');
-      tabChord.setAttribute('aria-selected', 'false');
+      searchPanel.style.display = '';
+      progressionsPanel.style.display = 'none';
       searchInput.placeholder = 'Enter notes (e.g., C E G B)';
+      this.clearResults();
+      const query = searchInput.value.trim();
+      if (query) {
+        this.handleSearch();
+      }
+      searchInput.focus();
+    } else if (mode === 'progressions') {
+      tabProgressions.classList.add('active');
+      tabProgressions.setAttribute('aria-selected', 'true');
+      searchPanel.style.display = 'none';
+      progressionsPanel.style.display = '';
+      this.displayProgressionSelector();
     }
-
-    // Re-search with current query
-    this.clearResults();
-    const query = searchInput.value.trim();
-    if (query) {
-      this.handleSearch();
-    }
-
-    searchInput.focus();
   },
 
   /**
@@ -189,7 +233,7 @@ const App = {
     grid.className = 'chord-grid';
 
     chord.positions.forEach((position, index) => {
-      const card = this.createChordCard(position, chordName, index + 1);
+      const card = this.createChordCard(position, chordName, index, chord);
       grid.appendChild(card);
     });
 
@@ -234,10 +278,17 @@ const App = {
 
   /**
    * Create a chord card with diagram
+   * @param {Object} position - Single position data
+   * @param {string} chordName - Display name of the chord
+   * @param {number} positionIndex - Index of this position in chord.positions
+   * @param {Object} chord - Full chord object with all positions
    */
-  createChordCard(position, chordName, positionNumber) {
+  createChordCard(position, chordName, positionIndex, chord) {
     const card = document.createElement('div');
     card.className = 'chord-card';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-label', `${chordName}, position ${positionIndex + 1}. Click to enlarge.`);
 
     // Position label
     const label = document.createElement('div');
@@ -245,9 +296,25 @@ const App = {
     label.textContent = position.baseFret === 1 ? 'Open' : `Fret ${position.baseFret}`;
     card.appendChild(label);
 
-    // Render diagram
-    const diagram = ChordDiagram.render(position, chordName, true);
+    // Calculate interval labels
+    const intervals = ChordDegrees.calculateIntervals(position, chord.key, chord.suffix);
+
+    // Render diagram with intervals
+    const diagram = ChordDiagram.render(position, chordName, true, intervals);
     card.appendChild(diagram);
+
+    // Click to open modal
+    const openModal = () => {
+      Modal.open(chord, chordName, positionIndex);
+    };
+
+    card.addEventListener('click', openModal);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openModal();
+      }
+    });
 
     return card;
   },
@@ -258,20 +325,34 @@ const App = {
   updateModeUI() {
     const tabChord = document.getElementById('tabChord');
     const tabNotes = document.getElementById('tabNotes');
+    const tabProgressions = document.getElementById('tabProgressions');
+    const searchPanel = document.getElementById('searchPanel');
+    const progressionsPanel = document.getElementById('progressionsPanel');
     const searchInput = document.getElementById('searchInput');
+
+    // Reset all tabs
+    [tabChord, tabNotes, tabProgressions].forEach(tab => {
+      tab.classList.remove('active');
+      tab.setAttribute('aria-selected', 'false');
+    });
 
     if (this.searchMode === 'chord') {
       tabChord.classList.add('active');
       tabChord.setAttribute('aria-selected', 'true');
-      tabNotes.classList.remove('active');
-      tabNotes.setAttribute('aria-selected', 'false');
+      searchPanel.style.display = '';
+      progressionsPanel.style.display = 'none';
       searchInput.placeholder = 'Enter chord name (e.g., Cmaj7, Am, F#dim)';
-    } else {
+    } else if (this.searchMode === 'notes') {
       tabNotes.classList.add('active');
       tabNotes.setAttribute('aria-selected', 'true');
-      tabChord.classList.remove('active');
-      tabChord.setAttribute('aria-selected', 'false');
+      searchPanel.style.display = '';
+      progressionsPanel.style.display = 'none';
       searchInput.placeholder = 'Enter notes (e.g., C E G B)';
+    } else if (this.searchMode === 'progressions') {
+      tabProgressions.classList.add('active');
+      tabProgressions.setAttribute('aria-selected', 'true');
+      searchPanel.style.display = 'none';
+      progressionsPanel.style.display = '';
     }
   },
 
@@ -330,6 +411,241 @@ const App = {
     if (loading) {
       loading.style.display = 'none';
     }
+  },
+
+  /**
+   * Display the progression selector UI
+   */
+  displayProgressionSelector() {
+    const resultsContainer = document.getElementById('results');
+    resultsContainer.innerHTML = '';
+
+    // Get progressions by category
+    const categories = Progressions.getByCategory();
+
+    // Create categories container
+    const categoriesDiv = document.createElement('div');
+    categoriesDiv.className = 'progression-categories';
+
+    // Render each category
+    Object.entries(categories).forEach(([catId, category]) => {
+      if (category.progressions.length === 0) return;
+
+      const categoryDiv = document.createElement('div');
+      categoryDiv.className = 'progression-category';
+
+      const heading = document.createElement('h3');
+      heading.textContent = category.name;
+      categoryDiv.appendChild(heading);
+
+      const list = document.createElement('div');
+      list.className = 'progression-list';
+
+      category.progressions.forEach(prog => {
+        const button = document.createElement('button');
+        button.className = 'progression-button';
+        if (this.selectedProgression && this.selectedProgression.id === prog.id) {
+          button.classList.add('active');
+        }
+        button.textContent = prog.name;
+        button.addEventListener('click', () => {
+          this.selectedProgression = prog;
+          this.displayProgression(prog);
+          // Update active state on buttons
+          document.querySelectorAll('.progression-button').forEach(btn => {
+            btn.classList.remove('active');
+          });
+          button.classList.add('active');
+        });
+        list.appendChild(button);
+      });
+
+      categoryDiv.appendChild(list);
+      categoriesDiv.appendChild(categoryDiv);
+    });
+
+    resultsContainer.appendChild(categoriesDiv);
+
+    // If a progression was previously selected, display it
+    if (this.selectedProgression) {
+      this.displayProgression(this.selectedProgression);
+    }
+  },
+
+  /**
+   * Display a progression with resolved chords
+   */
+  displayProgression(progression) {
+    // Remove any existing progression display
+    const existing = document.querySelector('.progression-display');
+    if (existing) {
+      existing.remove();
+    }
+
+    const resultsContainer = document.getElementById('results');
+
+    // Create progression display
+    const display = document.createElement('div');
+    display.className = 'progression-display';
+
+    // Resolve chords in current key
+    const resolved = Progressions.resolveProgression(progression, this.selectedKey);
+
+    // Title
+    const title = document.createElement('h2');
+    title.textContent = `${progression.name} in ${this.selectedKey}`;
+    display.appendChild(title);
+
+    // Check for blues summary mode
+    if (progression.displayMode === 'summary') {
+      this.renderBluesSummary(display, progression, resolved);
+    } else {
+      this.renderProgressionNormal(display, progression, resolved);
+    }
+
+    resultsContainer.appendChild(display);
+  },
+
+  /**
+   * Render normal progression view
+   */
+  renderProgressionNormal(container, progression, resolved) {
+    // Roman numerals
+    const numeralsDiv = document.createElement('div');
+    numeralsDiv.className = 'progression-numerals';
+    resolved.forEach((chord, index) => {
+      const span = document.createElement('span');
+      span.textContent = chord.numeral;
+      numeralsDiv.appendChild(span);
+      if (index < resolved.length - 1) {
+        const sep = document.createElement('span');
+        sep.className = 'progression-chord-separator';
+        sep.textContent = ' - ';
+        numeralsDiv.appendChild(sep);
+      }
+    });
+    container.appendChild(numeralsDiv);
+
+    // Chord names
+    const chordsDiv = document.createElement('div');
+    chordsDiv.className = 'progression-chords';
+    resolved.forEach((chord, index) => {
+      const span = document.createElement('span');
+      span.textContent = chord.chordName;
+      chordsDiv.appendChild(span);
+      if (index < resolved.length - 1) {
+        const sep = document.createElement('span');
+        sep.className = 'progression-chord-separator';
+        sep.textContent = ' - ';
+        chordsDiv.appendChild(sep);
+      }
+    });
+    container.appendChild(chordsDiv);
+
+    // Chord diagrams
+    const diagramsDiv = document.createElement('div');
+    diagramsDiv.className = 'progression-diagrams';
+
+    resolved.forEach(chord => {
+      const card = this.createProgressionDiagramCard(chord.chordName);
+      diagramsDiv.appendChild(card);
+    });
+
+    container.appendChild(diagramsDiv);
+  },
+
+  /**
+   * Render blues summary view
+   */
+  renderBluesSummary(container, progression, resolved) {
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'blues-summary';
+
+    const heading = document.createElement('h3');
+    heading.textContent = '12-Bar Structure';
+    summaryDiv.appendChild(heading);
+
+    // Create grid representation
+    const gridDiv = document.createElement('div');
+    gridDiv.className = 'blues-grid';
+
+    // 12 bars in 3 rows of 4
+    const bars = progression.numerals;
+    for (let row = 0; row < 3; row++) {
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'blues-grid-row';
+      for (let col = 0; col < 4; col++) {
+        const idx = row * 4 + col;
+        const cell = document.createElement('span');
+        cell.className = 'blues-grid-cell';
+        cell.textContent = `| ${bars[idx]}7 |`;
+        rowDiv.appendChild(cell);
+      }
+      gridDiv.appendChild(rowDiv);
+    }
+    summaryDiv.appendChild(gridDiv);
+    container.appendChild(summaryDiv);
+
+    // Get unique chords
+    const unique = Progressions.getUniqueChords(resolved);
+
+    // Chord diagrams (unique only)
+    const diagramsDiv = document.createElement('div');
+    diagramsDiv.className = 'progression-diagrams';
+
+    unique.forEach(chord => {
+      const card = this.createProgressionDiagramCard(chord.chordName);
+      diagramsDiv.appendChild(card);
+    });
+
+    container.appendChild(diagramsDiv);
+  },
+
+  /**
+   * Create a small chord diagram card for progression display
+   */
+  createProgressionDiagramCard(chordName) {
+    const card = document.createElement('div');
+    card.className = 'progression-diagram-card';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+
+    // Chord name label
+    const nameLabel = document.createElement('div');
+    nameLabel.className = 'chord-name';
+    nameLabel.textContent = chordName;
+    card.appendChild(nameLabel);
+
+    // Look up chord in database
+    const chord = Progressions.lookupChord(chordName, this.chordData);
+
+    if (chord && chord.positions && chord.positions.length > 0) {
+      const position = chord.positions[0]; // First position
+      const intervals = ChordDegrees.calculateIntervals(position, chord.key, chord.suffix);
+      const diagram = ChordDiagram.render(position, chordName, true, intervals);
+      card.appendChild(diagram);
+
+      // Click to open modal
+      const openModal = () => {
+        Modal.open(chord, chordName, 0);
+      };
+
+      card.addEventListener('click', openModal);
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openModal();
+        }
+      });
+    } else {
+      // Diagram unavailable
+      const placeholder = document.createElement('div');
+      placeholder.className = 'diagram-unavailable';
+      placeholder.textContent = 'Diagram unavailable';
+      card.appendChild(placeholder);
+    }
+
+    return card;
   },
 
   /**
