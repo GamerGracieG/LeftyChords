@@ -21,9 +21,10 @@ const ChordDiagram = {
    * @param {Object} position - Chord position data from database
    * @param {string} chordName - Full chord name (e.g., "Cmaj7")
    * @param {boolean} isLeftHanded - Render for left-handed (default true)
+   * @param {Array} intervals - Optional array of interval labels for each string
    * @returns {SVGElement} - The rendered SVG element
    */
-  render(position, chordName = '', isLeftHanded = true) {
+  render(position, chordName = '', isLeftHanded = true, intervals = null) {
     const { width, height, padding, strings, frets, dotRadius, nutHeight } = this.config;
 
     // Calculate grid dimensions
@@ -42,6 +43,8 @@ const ChordDiagram = {
     // For left-handed: reverse the frets and fingers arrays
     const fretPositions = isLeftHanded ? [...position.frets].reverse() : position.frets;
     const fingerPositions = isLeftHanded ? [...position.fingers].reverse() : position.fingers;
+    // Also reverse intervals if provided
+    const intervalPositions = intervals && isLeftHanded ? [...intervals].reverse() : intervals;
     const barres = position.barres || [];
     const baseFret = position.baseFret || 1;
 
@@ -49,8 +52,8 @@ const ChordDiagram = {
     this._drawNutOrPosition(svg, baseFret, padding, gridWidth, nutHeight);
     this._drawFretGrid(svg, padding, gridWidth, gridHeight, strings, frets, stringSpacing, fretSpacing);
     this._drawBarres(svg, barres, fretPositions, baseFret, padding, stringSpacing, fretSpacing, dotRadius, isLeftHanded);
-    this._drawFingerDots(svg, fretPositions, fingerPositions, baseFret, padding, stringSpacing, fretSpacing, dotRadius);
-    this._drawOpenMutedMarkers(svg, fretPositions, padding, stringSpacing);
+    this._drawFingerDots(svg, fretPositions, fingerPositions, baseFret, padding, stringSpacing, fretSpacing, dotRadius, intervalPositions);
+    this._drawOpenMutedMarkers(svg, fretPositions, padding, stringSpacing, baseFret, nutHeight, intervalPositions);
 
     return svg;
   },
@@ -144,14 +147,15 @@ const ChordDiagram = {
   },
 
   /**
-   * Draw finger position dots with numbers
+   * Draw finger position dots with numbers or interval labels
    */
-  _drawFingerDots(svg, fretPositions, fingerPositions, baseFret, padding, stringSpacing, fretSpacing, dotRadius) {
+  _drawFingerDots(svg, fretPositions, fingerPositions, baseFret, padding, stringSpacing, fretSpacing, dotRadius, intervals = null) {
     fretPositions.forEach((fret, index) => {
       if (fret > 0) { // Skip open (0) and muted (-1) strings
         const x = padding.left + (index * stringSpacing);
         const y = padding.top + ((fret - 0.5) * fretSpacing);
         const finger = fingerPositions[index];
+        const interval = intervals ? intervals[index] : null;
 
         // Draw dot
         const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -161,8 +165,15 @@ const ChordDiagram = {
         dot.setAttribute('class', 'chord-dot');
         svg.appendChild(dot);
 
-        // Draw finger number (if specified and not 0)
-        if (finger > 0) {
+        // Draw interval label OR finger number
+        if (interval) {
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', x);
+          text.setAttribute('y', y + 4);
+          text.setAttribute('class', 'chord-interval-label');
+          text.textContent = interval;
+          svg.appendChild(text);
+        } else if (finger > 0) {
           const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
           text.setAttribute('x', x);
           text.setAttribute('y', y + 4);
@@ -176,13 +187,17 @@ const ChordDiagram = {
 
   /**
    * Draw open (O) and muted (X) string markers above the nut
+   * Also draws interval labels below the nut for open strings
    */
-  _drawOpenMutedMarkers(svg, fretPositions, padding, stringSpacing) {
+  _drawOpenMutedMarkers(svg, fretPositions, padding, stringSpacing, baseFret = 1, nutHeight = 6, intervals = null) {
     const markerY = padding.top - 20;
     const markerRadius = 6;
+    // Position for interval labels below the nut
+    const intervalLabelY = padding.top + 12;
 
     fretPositions.forEach((fret, index) => {
       const x = padding.left + (index * stringSpacing);
+      const interval = intervals ? intervals[index] : null;
 
       if (fret === 0) {
         // Open string - draw circle
@@ -192,6 +207,16 @@ const ChordDiagram = {
         circle.setAttribute('r', markerRadius);
         circle.setAttribute('class', 'chord-open');
         svg.appendChild(circle);
+
+        // Draw interval label below the nut for open strings
+        if (interval && baseFret === 1) {
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', x);
+          text.setAttribute('y', intervalLabelY);
+          text.setAttribute('class', 'chord-open-interval');
+          text.textContent = interval;
+          svg.appendChild(text);
+        }
       } else if (fret === -1) {
         // Muted string - draw X
         const x1 = x - markerRadius;
