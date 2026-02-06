@@ -220,13 +220,18 @@ const Modal = {
 
     // Use the existing ChordDiagram renderer
     if (typeof ChordDiagram !== 'undefined') {
-      // Calculate intervals if ChordDegrees is available
+      // Determine annotation mode from App state
+      const mode = (typeof App !== 'undefined' && App.annotationMode) || 'intervals';
       let intervals = null;
-      if (typeof ChordDegrees !== 'undefined' && this.chord) {
+      let showFingerNumbers = true;
+
+      if (mode === 'intervals' && typeof ChordDegrees !== 'undefined' && this.chord) {
         intervals = ChordDegrees.calculateIntervals(position, this.chord.key, this.chord.suffix);
+      } else if (mode === 'clean') {
+        showFingerNumbers = false;
       }
 
-      const svg = ChordDiagram.render(position, '', true, intervals);
+      const svg = ChordDiagram.render(position, '', true, intervals, showFingerNumbers);
       svg.classList.add('modal-diagram');
       this.diagramContainer.appendChild(svg);
     }
