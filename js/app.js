@@ -10,6 +10,8 @@ const App = {
   isInitialized: false,
   selectedProgression: null,
   selectedKey: 'C',
+  annotationMode: 'intervals', // 'intervals', 'fingering', 'clean'
+  alterations: {}, // Track per-slot alterations: { slotIndex: newQuality }
 
   /**
    * Initialize the application
@@ -94,10 +96,72 @@ const App = {
     const keySelect = document.getElementById('keySelect');
     keySelect.addEventListener('change', (e) => {
       this.selectedKey = e.target.value;
+      this.alterations = {};
       if (this.selectedProgression) {
         this.displayProgression(this.selectedProgression);
       }
     });
+
+    // Annotation toggle
+    const annotationToggle = document.getElementById('annotationToggle');
+    annotationToggle.addEventListener('click', () => this.cycleAnnotationMode());
+
+    // Close alteration popup on outside click
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.alteration-popup') && !e.target.closest('.progression-chord-name')) {
+        this.closeAlterationPopup();
+      }
+    });
+  },
+
+  /**
+   * Cycle through annotation modes: intervals → fingering → clean
+   */
+  cycleAnnotationMode() {
+    const modes = ['intervals', 'fingering', 'clean'];
+    const labels = { intervals: 'Intervals', fingering: 'Fingering', clean: 'Clean' };
+    const currentIndex = modes.indexOf(this.annotationMode);
+    this.annotationMode = modes[(currentIndex + 1) % modes.length];
+
+    document.getElementById('annotationLabel').textContent = labels[this.annotationMode];
+    this.refreshDiagrams();
+  },
+
+  /**
+   * Get diagram render parameters based on current annotation mode
+   */
+  getDiagramParams(position, chord) {
+    let intervals = null;
+    let showFingerNumbers = true;
+
+    if (this.annotationMode === 'intervals') {
+      intervals = ChordDegrees.calculateIntervals(position, chord.key, chord.suffix);
+    } else if (this.annotationMode === 'clean') {
+      showFingerNumbers = false;
+    }
+
+    return { intervals, showFingerNumbers };
+  },
+
+  /**
+   * Refresh all visible diagrams with current annotation mode
+   */
+  refreshDiagrams() {
+    // Re-render current view
+    if (this.searchMode === 'progressions' && this.selectedProgression) {
+      this.displayProgression(this.selectedProgression);
+    } else {
+      // Re-trigger search to refresh diagrams
+      const query = document.getElementById('searchInput').value.trim();
+      if (query) {
+        this.handleSearch();
+      }
+    }
+
+    // Re-render modal if open
+    if (Modal.isOpen) {
+      Modal.renderCurrentPosition();
+    }
   },
 
   /**
@@ -278,10 +342,6 @@ const App = {
 
   /**
    * Create a chord card with diagram
-   * @param {Object} position - Single position data
-   * @param {string} chordName - Display name of the chord
-   * @param {number} positionIndex - Index of this position in chord.positions
-   * @param {Object} chord - Full chord object with all positions
    */
   createChordCard(position, chordName, positionIndex, chord) {
     const card = document.createElement('div');
@@ -296,11 +356,9 @@ const App = {
     label.textContent = position.baseFret === 1 ? 'Open' : `Fret ${position.baseFret}`;
     card.appendChild(label);
 
-    // Calculate interval labels
-    const intervals = ChordDegrees.calculateIntervals(position, chord.key, chord.suffix);
-
-    // Render diagram with intervals
-    const diagram = ChordDiagram.render(position, chordName, true, intervals);
+    // Render diagram with current annotation mode
+    const { intervals, showFingerNumbers } = this.getDiagramParams(position, chord);
+    const diagram = ChordDiagram.render(position, chordName, true, intervals, showFingerNumbers);
     card.appendChild(diagram);
 
     // Click to open modal
@@ -447,9 +505,23 @@ const App = {
         if (this.selectedProgression && this.selectedProgression.id === prog.id) {
           button.classList.add('active');
         }
-        button.textContent = prog.name;
+
+        // Name and description
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'prog-name';
+        nameSpan.textContent = prog.name;
+        button.appendChild(nameSpan);
+
+        if (prog.description) {
+          const descSpan = document.createElement('span');
+          descSpan.className = 'prog-description';
+          descSpan.textContent = prog.description;
+          button.appendChild(descSpan);
+        }
+
         button.addEventListener('click', () => {
           this.selectedProgression = prog;
+          this.alterations = {};
           this.displayProgression(prog);
           // Update active state on buttons
           document.querySelectorAll('.progression-button').forEach(btn => {
@@ -488,18 +560,21 @@ const App = {
     const display = document.createElement('div');
     display.className = 'progression-display';
 
-    // Resolve chords in current key
-    const resolved = Progressions.resolveProgression(progression, this.selectedKey);
-
     // Title
     const title = document.createElement('h2');
     title.textContent = `${progression.name} in ${this.selectedKey}`;
     display.appendChild(title);
 
-    // Check for blues summary mode
+    // Route to appropriate renderer
     if (progression.displayMode === 'summary') {
+      const resolved = Progressions.resolveProgression(progression, this.selectedKey);
       this.renderBluesSummary(display, progression, resolved);
+    } else if (progression.displayMode === 'sections') {
+      this.renderSections(display, progression);
+    } else if (progression.displayMode === 'chart') {
+      this.renderChart(display, progression);
     } else {
+      const resolved = Progressions.resolveProgression(progression, this.selectedKey);
       this.renderProgressionNormal(display, progression, resolved);
     }
 
@@ -526,12 +601,25 @@ const App = {
     });
     container.appendChild(numeralsDiv);
 
-    // Chord names
+    // Chord names (clickable for alterations)
     const chordsDiv = document.createElement('div');
     chordsDiv.className = 'progression-chords';
     resolved.forEach((chord, index) => {
+      const displayQuality = this.alterations[index] !== undefined ? this.alterations[index] : chord.quality;
+      const displayName = chord.root + displayQuality;
+
       const span = document.createElement('span');
-      span.textContent = chord.chordName;
+      span.className = 'progression-chord-name';
+      span.textContent = displayName;
+      span.dataset.slotIndex = index;
+      span.dataset.root = chord.root;
+      span.dataset.originalQuality = chord.quality;
+
+      span.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.showAlterationPopup(span, index, chord.root, chord.quality);
+      });
+
       chordsDiv.appendChild(span);
       if (index < resolved.length - 1) {
         const sep = document.createElement('span');
@@ -546,11 +634,139 @@ const App = {
     const diagramsDiv = document.createElement('div');
     diagramsDiv.className = 'progression-diagrams';
 
-    resolved.forEach(chord => {
+    // Get unique chords accounting for alterations
+    const displayedChords = resolved.map((chord, index) => {
+      const quality = this.alterations[index] !== undefined ? this.alterations[index] : chord.quality;
+      return { ...chord, chordName: chord.root + quality };
+    });
+    const unique = Progressions.getUniqueChords(displayedChords);
+
+    unique.forEach(chord => {
       const card = this.createProgressionDiagramCard(chord.chordName);
       diagramsDiv.appendChild(card);
     });
 
+    container.appendChild(diagramsDiv);
+  },
+
+  /**
+   * Render sections display mode (Rhythm Changes)
+   */
+  renderSections(container, progression) {
+    const sections = Progressions.resolveSections(progression, this.selectedKey);
+    const allUniqueChords = [];
+
+    Object.entries(sections).forEach(([sectionKey, section]) => {
+      const sectionDiv = document.createElement('div');
+      sectionDiv.className = 'progression-section';
+
+      const heading = document.createElement('h3');
+      heading.textContent = section.label;
+      sectionDiv.appendChild(heading);
+
+      // Numerals
+      const numeralsDiv = document.createElement('div');
+      numeralsDiv.className = 'progression-numerals';
+      section.resolved.forEach((chord, index) => {
+        const span = document.createElement('span');
+        span.textContent = chord.numeral;
+        numeralsDiv.appendChild(span);
+        if (index < section.resolved.length - 1) {
+          const sep = document.createElement('span');
+          sep.className = 'progression-chord-separator';
+          sep.textContent = ' - ';
+          numeralsDiv.appendChild(sep);
+        }
+      });
+      sectionDiv.appendChild(numeralsDiv);
+
+      // Chord names (clickable)
+      const chordsDiv = document.createElement('div');
+      chordsDiv.className = 'progression-chords';
+      section.resolved.forEach((chord, index) => {
+        const slotKey = `${sectionKey}-${index}`;
+        const displayQuality = this.alterations[slotKey] !== undefined ? this.alterations[slotKey] : chord.quality;
+        const displayName = chord.root + displayQuality;
+
+        const span = document.createElement('span');
+        span.className = 'progression-chord-name';
+        span.textContent = displayName;
+
+        span.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.showAlterationPopup(span, slotKey, chord.root, chord.quality);
+        });
+
+        chordsDiv.appendChild(span);
+        if (index < section.resolved.length - 1) {
+          const sep = document.createElement('span');
+          sep.className = 'progression-chord-separator';
+          sep.textContent = ' - ';
+          chordsDiv.appendChild(sep);
+        }
+
+        // Collect for unique chords
+        allUniqueChords.push({ ...chord, chordName: displayName });
+      });
+      sectionDiv.appendChild(chordsDiv);
+
+      container.appendChild(sectionDiv);
+    });
+
+    // Combined unique chord diagrams
+    const unique = Progressions.getUniqueChords(allUniqueChords);
+    const diagramsDiv = document.createElement('div');
+    diagramsDiv.className = 'progression-diagrams';
+    unique.forEach(chord => {
+      const card = this.createProgressionDiagramCard(chord.chordName);
+      diagramsDiv.appendChild(card);
+    });
+    container.appendChild(diagramsDiv);
+  },
+
+  /**
+   * Render chart display mode (Bird Blues)
+   */
+  renderChart(container, progression) {
+    const resolvedBars = Progressions.resolveChart(progression, this.selectedKey);
+
+    // Chart heading
+    const heading = document.createElement('h3');
+    heading.textContent = '12-Bar Structure';
+    heading.style.textAlign = 'center';
+    heading.style.marginBottom = 'var(--spacing-md)';
+    container.appendChild(heading);
+
+    // Grid
+    const gridDiv = document.createElement('div');
+    gridDiv.className = 'chart-grid';
+
+    for (let row = 0; row < 3; row++) {
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'chart-grid-row';
+
+      for (let col = 0; col < 4; col++) {
+        const barIndex = row * 4 + col;
+        const bar = resolvedBars[barIndex];
+        const cell = document.createElement('div');
+        cell.className = 'chart-grid-cell';
+        cell.textContent = bar.map(c => c.chordName).join('  ');
+        rowDiv.appendChild(cell);
+      }
+
+      gridDiv.appendChild(rowDiv);
+    }
+
+    container.appendChild(gridDiv);
+
+    // Unique chord diagrams
+    const unique = Progressions.getUniqueChordsFromChart(resolvedBars);
+    const diagramsDiv = document.createElement('div');
+    diagramsDiv.className = 'progression-diagrams';
+    unique.forEach(chord => {
+      const card = this.createProgressionDiagramCard(chord.chordName);
+      diagramsDiv.appendChild(card);
+    });
     container.appendChild(diagramsDiv);
   },
 
@@ -571,14 +787,17 @@ const App = {
 
     // 12 bars in 3 rows of 4
     const bars = progression.numerals;
+    const qualities = progression.qualities;
     for (let row = 0; row < 3; row++) {
       const rowDiv = document.createElement('div');
       rowDiv.className = 'blues-grid-row';
       for (let col = 0; col < 4; col++) {
         const idx = row * 4 + col;
+        const numeral = bars[idx];
+        const quality = qualities[numeral] || '';
         const cell = document.createElement('span');
         cell.className = 'blues-grid-cell';
-        cell.textContent = `| ${bars[idx]}7 |`;
+        cell.textContent = `| ${numeral}${quality} |`;
         rowDiv.appendChild(cell);
       }
       gridDiv.appendChild(rowDiv);
@@ -602,6 +821,76 @@ const App = {
   },
 
   /**
+   * Show alteration popup for a chord slot
+   */
+  showAlterationPopup(anchorElement, slotKey, root, originalQuality) {
+    // Close any existing popup
+    this.closeAlterationPopup();
+
+    const alterations = Progressions.getAlterations(originalQuality);
+    if (alterations.length <= 1) return; // No alternatives available
+
+    const popup = document.createElement('div');
+    popup.className = 'alteration-popup';
+
+    const currentQuality = this.alterations[slotKey] !== undefined ? this.alterations[slotKey] : originalQuality;
+
+    alterations.forEach(quality => {
+      const btn = document.createElement('button');
+      btn.className = 'alteration-option';
+      btn.textContent = root + (quality || 'maj');
+      if (quality === currentQuality) {
+        btn.classList.add('active');
+      }
+
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (quality === originalQuality) {
+          delete this.alterations[slotKey];
+        } else {
+          this.alterations[slotKey] = quality;
+        }
+        this.closeAlterationPopup();
+        this.displayProgression(this.selectedProgression);
+      });
+
+      popup.appendChild(btn);
+    });
+
+    // Position popup relative to anchor
+    const rect = anchorElement.getBoundingClientRect();
+    popup.style.position = 'fixed';
+    popup.style.left = `${Math.max(8, rect.left)}px`;
+
+    // Show above or below depending on space
+    if (rect.top > window.innerHeight / 2) {
+      popup.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+    } else {
+      popup.style.top = `${rect.bottom + 4}px`;
+    }
+
+    document.body.appendChild(popup);
+
+    // Ensure popup doesn't overflow right edge
+    requestAnimationFrame(() => {
+      const popupRect = popup.getBoundingClientRect();
+      if (popupRect.right > window.innerWidth - 8) {
+        popup.style.left = `${window.innerWidth - popupRect.width - 8}px`;
+      }
+    });
+  },
+
+  /**
+   * Close any open alteration popup
+   */
+  closeAlterationPopup() {
+    const existing = document.querySelector('.alteration-popup');
+    if (existing) {
+      existing.remove();
+    }
+  },
+
+  /**
    * Create a small chord diagram card for progression display
    */
   createProgressionDiagramCard(chordName) {
@@ -621,8 +910,8 @@ const App = {
 
     if (chord && chord.positions && chord.positions.length > 0) {
       const position = chord.positions[0]; // First position
-      const intervals = ChordDegrees.calculateIntervals(position, chord.key, chord.suffix);
-      const diagram = ChordDiagram.render(position, chordName, true, intervals);
+      const { intervals, showFingerNumbers } = this.getDiagramParams(position, chord);
+      const diagram = ChordDiagram.render(position, chordName, true, intervals, showFingerNumbers);
       card.appendChild(diagram);
 
       // Click to open modal

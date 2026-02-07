@@ -138,7 +138,22 @@ const ChordSearch = {
     '13': '13',
     'maj11': 'maj11',
     'maj13': 'maj13',
-    'm11': 'm11'
+    'm11': 'm11',
+
+    // Slash chords (major)
+    '/A': '/A', '/Ab': '/Ab', '/B': '/B', '/Bb': '/Bb',
+    '/C': '/C', '/C#': '/C#', '/D': '/D', '/E': '/E',
+    '/Eb': '/Eb', '/F': '/F', '/F#': '/F#', '/G': '/G',
+    // Slash chords (minor)
+    'm/A': 'm/A', 'm/Ab': 'm/Ab', 'm/B': 'm/B', 'm/Bb': 'm/Bb',
+    'm/C': 'm/C', 'm/C#': 'm/C#', 'm/D': 'm/D', 'm/E': 'm/E',
+    'm/Eb': 'm/Eb', 'm/F': 'm/F', 'm/F#': 'm/F#', 'm/G': 'm/G',
+    // Slash chords (m9)
+    'm9/A': 'm9/A', 'm9/Ab': 'm9/Ab', 'm9/B': 'm9/B', 'm9/Bb': 'm9/Bb',
+    'm9/C': 'm9/C', 'm9/C#': 'm9/C#', 'm9/D': 'm9/D', 'm9/E': 'm9/E',
+    'm9/Eb': 'm9/Eb', 'm9/F': 'm9/F', 'm9/F#': 'm9/F#', 'm9/G': 'm9/G',
+    // Slash chords (7)
+    '7/G': '7/G'
   },
 
   /**

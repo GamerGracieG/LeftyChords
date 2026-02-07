@@ -24,7 +24,7 @@ const ChordDiagram = {
    * @param {Array} intervals - Optional array of interval labels for each string
    * @returns {SVGElement} - The rendered SVG element
    */
-  render(position, chordName = '', isLeftHanded = true, intervals = null) {
+  render(position, chordName = '', isLeftHanded = true, intervals = null, showFingerNumbers = true) {
     const { width, height, padding, strings, frets, dotRadius, nutHeight } = this.config;
 
     // Calculate grid dimensions
@@ -52,7 +52,7 @@ const ChordDiagram = {
     this._drawNutOrPosition(svg, baseFret, padding, gridWidth, nutHeight);
     this._drawFretGrid(svg, padding, gridWidth, gridHeight, strings, frets, stringSpacing, fretSpacing);
     this._drawBarres(svg, barres, fretPositions, baseFret, padding, stringSpacing, fretSpacing, dotRadius, isLeftHanded);
-    this._drawFingerDots(svg, fretPositions, fingerPositions, baseFret, padding, stringSpacing, fretSpacing, dotRadius, intervalPositions);
+    this._drawFingerDots(svg, fretPositions, fingerPositions, baseFret, padding, stringSpacing, fretSpacing, dotRadius, intervalPositions, showFingerNumbers);
     this._drawOpenMutedMarkers(svg, fretPositions, padding, stringSpacing, baseFret, nutHeight, intervalPositions);
 
     return svg;
@@ -149,7 +149,7 @@ const ChordDiagram = {
   /**
    * Draw finger position dots with numbers or interval labels
    */
-  _drawFingerDots(svg, fretPositions, fingerPositions, baseFret, padding, stringSpacing, fretSpacing, dotRadius, intervals = null) {
+  _drawFingerDots(svg, fretPositions, fingerPositions, baseFret, padding, stringSpacing, fretSpacing, dotRadius, intervals = null, showFingerNumbers = true) {
     fretPositions.forEach((fret, index) => {
       if (fret > 0) { // Skip open (0) and muted (-1) strings
         const x = padding.left + (index * stringSpacing);
@@ -173,7 +173,7 @@ const ChordDiagram = {
           text.setAttribute('class', 'chord-interval-label');
           text.textContent = interval;
           svg.appendChild(text);
-        } else if (finger > 0) {
+        } else if (showFingerNumbers && finger > 0) {
           const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
           text.setAttribute('x', x);
           text.setAttribute('y', y + 4);
