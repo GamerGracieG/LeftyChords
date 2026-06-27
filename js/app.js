@@ -13,6 +13,28 @@ const App = {
   annotationMode: 'intervals', // 'intervals', 'fingering', 'clean'
   alterations: {}, // Track per-slot alterations: { slotIndex: newQuality }
 
+  // Chord picker state (button-based root/quality selection)
+  pickerRoots: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'],
+  pickerQualities: [
+    { label: 'Maj', suffix: '' },
+    { label: 'Min', suffix: 'm' },
+    { label: '7', suffix: '7' },
+    { label: 'Maj7', suffix: 'maj7' },
+    { label: 'm7', suffix: 'm7' },
+    { label: 'Dim', suffix: 'dim' },
+    { label: 'Dim7', suffix: 'dim7' },
+    { label: 'Aug', suffix: 'aug' },
+    { label: 'Sus2', suffix: 'sus2' },
+    { label: 'Sus4', suffix: 'sus4' },
+    { label: '6', suffix: '6' },
+    { label: 'm6', suffix: 'm6' },
+    { label: '9', suffix: '9' },
+    { label: 'm9', suffix: 'm9' },
+    { label: 'Add9', suffix: 'add9' }
+  ],
+  pickerRoot: null,
+  pickerQuality: '',
+
   /**
    * Initialize the application
    */
@@ -34,6 +56,9 @@ const App = {
         // When a suggestion is selected, search for it
         this.searchByChordName(chordName);
       });
+
+      // Build the button-based chord picker
+      this.buildChordPicker();
 
       // Set up event listeners
       this.setupEventListeners();
@@ -78,6 +103,9 @@ const App = {
         this.handleSearch();
       }
     });
+    // Typing manually deselects the picker buttons since they no longer
+    // necessarily reflect the current search
+    searchInput.addEventListener('input', () => this.clearPickerSelection());
 
     // Tab buttons
     const tabChord = document.getElementById('tabChord');
@@ -111,6 +139,88 @@ const App = {
       if (!e.target.closest('.alteration-popup') && !e.target.closest('.progression-chord-name')) {
         this.closeAlterationPopup();
       }
+    });
+  },
+
+  /**
+   * Build the button-based chord picker (root notes + qualities)
+   */
+  buildChordPicker() {
+    const rootContainer = document.getElementById('rootButtons');
+    const qualityContainer = document.getElementById('qualityButtons');
+
+    this.pickerRoots.forEach(root => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'picker-btn picker-root-btn';
+      btn.textContent = root;
+      btn.dataset.root = root;
+      btn.addEventListener('click', () => this.selectPickerRoot(root));
+      rootContainer.appendChild(btn);
+    });
+
+    this.pickerQualities.forEach(quality => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'picker-btn picker-quality-btn';
+      btn.textContent = quality.label;
+      btn.dataset.suffix = quality.suffix;
+      if (quality.suffix === this.pickerQuality) {
+        btn.classList.add('active');
+      }
+      btn.addEventListener('click', () => this.selectPickerQuality(quality.suffix));
+      qualityContainer.appendChild(btn);
+    });
+  },
+
+  /**
+   * Handle a root note button selection
+   */
+  selectPickerRoot(root) {
+    this.pickerRoot = root;
+    this.updatePickerActiveStates();
+    this.searchFromPicker();
+  },
+
+  /**
+   * Handle a chord quality button selection
+   */
+  selectPickerQuality(suffix) {
+    this.pickerQuality = suffix;
+    this.updatePickerActiveStates();
+    this.searchFromPicker();
+  },
+
+  /**
+   * Run a search using the current picker selection, if a root is chosen
+   */
+  searchFromPicker() {
+    if (!this.pickerRoot) return;
+    const chordName = this.pickerRoot + this.pickerQuality;
+    document.getElementById('searchInput').value = chordName;
+    this.searchByChordName(chordName);
+  },
+
+  /**
+   * Update the active/selected styling on picker buttons
+   */
+  updatePickerActiveStates() {
+    document.querySelectorAll('.picker-root-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.root === this.pickerRoot);
+    });
+    document.querySelectorAll('.picker-quality-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.suffix === this.pickerQuality);
+    });
+  },
+
+  /**
+   * Clear picker button selection (e.g. when the user types manually)
+   */
+  clearPickerSelection() {
+    if (!this.pickerRoot) return;
+    this.pickerRoot = null;
+    document.querySelectorAll('.picker-root-btn.active').forEach(btn => {
+      btn.classList.remove('active');
     });
   },
 
@@ -177,6 +287,7 @@ const App = {
     const tabNotes = document.getElementById('tabNotes');
     const tabProgressions = document.getElementById('tabProgressions');
     const searchPanel = document.getElementById('searchPanel');
+    const chordPicker = document.getElementById('chordPicker');
     const progressionsPanel = document.getElementById('progressionsPanel');
     const searchInput = document.getElementById('searchInput');
 
@@ -193,6 +304,7 @@ const App = {
       tabChord.classList.add('active');
       tabChord.setAttribute('aria-selected', 'true');
       searchPanel.style.display = '';
+      chordPicker.style.display = '';
       progressionsPanel.style.display = 'none';
       searchInput.placeholder = 'Enter chord name (e.g., Cmaj7, Am, F#dim)';
       this.clearResults();
@@ -205,6 +317,7 @@ const App = {
       tabNotes.classList.add('active');
       tabNotes.setAttribute('aria-selected', 'true');
       searchPanel.style.display = '';
+      chordPicker.style.display = 'none';
       progressionsPanel.style.display = 'none';
       searchInput.placeholder = 'Enter notes (e.g., C E G B)';
       this.clearResults();
@@ -217,6 +330,7 @@ const App = {
       tabProgressions.classList.add('active');
       tabProgressions.setAttribute('aria-selected', 'true');
       searchPanel.style.display = 'none';
+      chordPicker.style.display = 'none';
       progressionsPanel.style.display = '';
       this.displayProgressionSelector();
     }
@@ -385,6 +499,7 @@ const App = {
     const tabNotes = document.getElementById('tabNotes');
     const tabProgressions = document.getElementById('tabProgressions');
     const searchPanel = document.getElementById('searchPanel');
+    const chordPicker = document.getElementById('chordPicker');
     const progressionsPanel = document.getElementById('progressionsPanel');
     const searchInput = document.getElementById('searchInput');
 
@@ -398,18 +513,21 @@ const App = {
       tabChord.classList.add('active');
       tabChord.setAttribute('aria-selected', 'true');
       searchPanel.style.display = '';
+      chordPicker.style.display = '';
       progressionsPanel.style.display = 'none';
       searchInput.placeholder = 'Enter chord name (e.g., Cmaj7, Am, F#dim)';
     } else if (this.searchMode === 'notes') {
       tabNotes.classList.add('active');
       tabNotes.setAttribute('aria-selected', 'true');
       searchPanel.style.display = '';
+      chordPicker.style.display = 'none';
       progressionsPanel.style.display = 'none';
       searchInput.placeholder = 'Enter notes (e.g., C E G B)';
     } else if (this.searchMode === 'progressions') {
       tabProgressions.classList.add('active');
       tabProgressions.setAttribute('aria-selected', 'true');
       searchPanel.style.display = 'none';
+      chordPicker.style.display = 'none';
       progressionsPanel.style.display = '';
     }
   },
@@ -457,6 +575,7 @@ const App = {
    */
   clearSearch() {
     document.getElementById('searchInput').value = '';
+    this.clearPickerSelection();
     this.clearResults();
     document.getElementById('searchInput').focus();
   },

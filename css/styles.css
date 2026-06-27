@@ -185,6 +185,45 @@ body {
   color: var(--color-text);
 }
 
+/* Chord Picker (button-based root + quality selection) */
+.chord-picker {
+  margin-top: var(--spacing-md);
+}
+
+.picker-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.picker-row + .picker-row {
+  margin-top: var(--spacing-sm);
+}
+
+.picker-btn {
+  flex: 0 0 auto;
+  min-width: 40px;
+  padding: var(--spacing-sm) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  background: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.picker-btn:hover {
+  border-color: var(--color-primary);
+}
+
+.picker-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
 /* Autocomplete Dropdown */
 .autocomplete-dropdown {
   position: absolute;
@@ -493,6 +532,7 @@ body {
   #searchInput,
   #modeToggle,
   .chord-button,
+  .picker-btn,
   #clearBtn {
     min-height: 44px;
   }
