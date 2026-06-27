@@ -467,7 +467,8 @@ const App = {
     // Position label
     const label = document.createElement('div');
     label.className = 'chord-label';
-    label.textContent = position.baseFret === 1 ? 'Open' : `Fret ${position.baseFret}`;
+    const hasOpenString = position.frets.includes(0);
+    label.textContent = (position.baseFret === 1 && hasOpenString) ? 'Open' : `Fret ${position.baseFret}`;
     card.appendChild(label);
 
     // Render diagram with current annotation mode
